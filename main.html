@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>BLE Diagnostic Table</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #f4f6f8;
+    padding: 30px;
+}
+button {
+    padding: 10px 20px;
+    margin: 10px 0;
+    font-size: 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+}
+.connect { background: #007bff; color: white; }
+.pdf { background: #28a745; color: white; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: white;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    font-size: 13px;
+}
+th {
+    background: #007bff;
+    color: white;
+}
+</style>
+</head>
+<body>
+
+<h2>BLE Diagnostic Table</h2>
+
+<button class="connect" onclick="connect()">Connect & Scan</button>
+<button class="pdf" onclick="generatePDF()">Create PDF Report</button>
+
+<table id="bleTable">
+<thead>
+<tr>
+<th>Service UUID</th>
+<th>Characteristic UUID</th>
+<th>Properties</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+let device;
+let tableData = [];
+
+async function connect() {
+    const tbody = document.querySelector("#bleTable tbody");
+    tbody.innerHTML = "";
+    tableData = [];
+
+    try {
+        device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true
+        });
+
+        const server = await device.gatt.connect();
+        const services = await server.getPrimaryServices();
+
+        for (const service of services) {
+            const characteristics = await service.getCharacteristics();
+
+            for (const char of characteristics) {
+
+                const props = Object.keys(char.properties)
+                    .filter(p => char.properties[p] === true)
+                    .join(", ");
+
+                // Добавляем в таблицу
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${service.uuid}</td>
+                    <td>${char.uuid}</td>
+                    <td>${props}</td>
+                `;
+                tbody.appendChild(row);
+
+                tableData.push([
+                    service.uuid,
+                    char.uuid,
+                    props
+                ]);
+            }
+        }
+
+    } catch (error) {
+        alert("Error: " + error);
+    }
+}
+
+function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text("BLE Diagnostic Report", 14, 20);
+
+    doc.setFontSize(12);
+    doc.text("Device: " + (device ? device.name : "Unknown"), 14, 30);
+    doc.text("Date: " + new Date().toLocaleString(), 14, 37);
+
+    doc.autoTable({
+        startY: 45,
+        head: [['Service UUID', 'Characteristic UUID', 'Properties']],
+        body: tableData,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [0, 123, 255] }
+    });
+
+    doc.save("BLE_Table_Report.pdf");
+}
+</script>
+
+</body>
+</html>
